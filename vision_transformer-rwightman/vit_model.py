@@ -317,6 +317,7 @@ def _init_vit_weights(m):
         nn.init.ones_(m.weight)
 
 
+# 这是那个patch为16  图片大小为224的最基础的哪一个模型
 def vit_base_patch16_224(num_classes: int = 1000):
     """
     ViT-Base model (ViT-B/16) from original paper (https://arxiv.org/abs/2010.11929).
