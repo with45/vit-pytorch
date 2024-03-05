@@ -21,9 +21,12 @@ def drop_path(x, drop_prob: float = 0., training: bool = False):
     if drop_prob == 0. or not training:
         return x
     keep_prob = 1 - drop_prob
+    # 这里的shape的值和x的shape一致
     shape = (x.shape[0],) + (1,) * (x.ndim - 1)  # work with diff dim tensors, not just 2D ConvNets
+
     random_tensor = keep_prob + torch.rand(shape, dtype=x.dtype, device=x.device)
     random_tensor.floor_()  # binarize
+    # random_tensor 里面只有0和1 0的去掉 1留下
     output = x.div(keep_prob) * random_tensor
     return output
 
@@ -49,13 +52,22 @@ class PatchEmbed(nn.Module):
     def __init__(self, img_size=224, patch_size=16, in_c=3, embed_dim=768, norm_layer=None):
         super().__init__()
         img_size = (img_size, img_size)
+
+        # patch_size是最终embedding 之后的结果
         patch_size = (patch_size, patch_size)
         self.img_size = img_size
         self.patch_size = patch_size
+
+        # 计算grid大小
         self.grid_size = (img_size[0] // patch_size[0], img_size[1] // patch_size[1])
+
+        # 总共的patch个数
         self.num_patches = self.grid_size[0] * self.grid_size[1]
 
+        # 卷积
         self.proj = nn.Conv2d(in_c, embed_dim, kernel_size=patch_size, stride=patch_size)
+
+        # nn.Identity()是一个空操作  输入什么输出什么
         self.norm = norm_layer(embed_dim) if norm_layer else nn.Identity()
 
     def forward(self, x):
@@ -79,6 +91,7 @@ class Attention(nn.Module):
                  attn_drop_ratio=0.,
                  proj_drop_ratio=0.):
         super(Attention, self).__init__()
+        # 这里用的是多头注意力机制
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
@@ -96,11 +109,15 @@ class Attention(nn.Module):
         # permute: -> [3, batch_size, num_heads, num_patches + 1, embed_dim_per_head]
         qkv = self.qkv(x).reshape(B, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
         # [batch_size, num_heads, num_patches + 1, embed_dim_per_head]
+
+        # 这里其实也是自注意力的一种
         q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
         # transpose: -> [batch_size, num_heads, embed_dim_per_head, num_patches + 1]
         # @: multiply -> [batch_size, num_heads, num_patches + 1, num_patches + 1]
+        # 自注意力计算
         attn = (q @ k.transpose(-2, -1)) * self.scale
+
         attn = attn.softmax(dim=-1)
         attn = self.attn_drop(attn)
 
@@ -137,6 +154,10 @@ class Mlp(nn.Module):
 
 
 class Block(nn.Module):
+    """
+    transformer 编码快
+    """
+
     def __init__(self,
                  dim,
                  num_heads,
@@ -164,6 +185,7 @@ class Block(nn.Module):
         return x
 
 
+# VIT类
 class VisionTransformer(nn.Module):
     def __init__(self, img_size=224, patch_size=16, in_c=3, num_classes=1000,
                  embed_dim=768, depth=12, num_heads=12, mlp_ratio=4.0, qkv_bias=True,
@@ -277,14 +299,19 @@ def _init_vit_weights(m):
     ViT weight initialization
     :param m: module
     """
+    # 对全连接层进行初始化 bias 全设置为0
     if isinstance(m, nn.Linear):
         nn.init.trunc_normal_(m.weight, std=.01)
         if m.bias is not None:
             nn.init.zeros_(m.bias)
+
+    # 对卷积层进行处理
     elif isinstance(m, nn.Conv2d):
         nn.init.kaiming_normal_(m.weight, mode="fan_out")
         if m.bias is not None:
             nn.init.zeros_(m.bias)
+
+    # 对层归一化进行初始化
     elif isinstance(m, nn.LayerNorm):
         nn.init.zeros_(m.bias)
         nn.init.ones_(m.weight)
