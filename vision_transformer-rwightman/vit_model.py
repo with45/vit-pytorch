@@ -247,7 +247,7 @@ class VisionTransformer(nn.Module):
             for i in range(depth)
         ])
 
-
+        # 层归一化层
         self.norm = norm_layer(embed_dim)
 
         # Representation layer
@@ -271,6 +271,7 @@ class VisionTransformer(nn.Module):
             self.head_dist = nn.Linear(self.embed_dim, self.num_classes) if num_classes > 0 else nn.Identity()
 
         # Weight init
+        # 初始化位置编码
         nn.init.trunc_normal_(self.pos_embed, std=0.02)
         if self.dist_token is not None:
             nn.init.trunc_normal_(self.dist_token, std=0.02)
@@ -281,15 +282,22 @@ class VisionTransformer(nn.Module):
     def forward_features(self, x):
         # [B, C, H, W] -> [B, num_patches, embed_dim]
         x = self.patch_embed(x)  # [B, 196, 768]
+
         # [1, 1, 768] -> [B, 1, 768]
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)
+
         if self.dist_token is None:
+            # vit 模型执行这个
             x = torch.cat((cls_token, x), dim=1)  # [B, 197, 768]
         else:
             x = torch.cat((cls_token, self.dist_token.expand(x.shape[0], -1, -1), x), dim=1)
 
+        # 加上位置编码
         x = self.pos_drop(x + self.pos_embed)
+
+        # 进行transformer 的encoder12次
         x = self.blocks(x)
+
         x = self.norm(x)
         if self.dist_token is None:
             return self.pre_logits(x[:, 0])
