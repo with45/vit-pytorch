@@ -171,8 +171,10 @@ class Block(nn.Module):
                  norm_layer=nn.LayerNorm):
         super(Block, self).__init__()
         self.norm1 = norm_layer(dim)
+        # 多头注意力
         self.attn = Attention(dim, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale,
                               attn_drop_ratio=attn_drop_ratio, proj_drop_ratio=drop_ratio)
+
         # NOTE: drop path for stochastic depth, we shall see if this is better than dropout here
         self.drop_path = DropPath(drop_path_ratio) if drop_path_ratio > 0. else nn.Identity()
         self.norm2 = norm_layer(dim)
@@ -215,18 +217,28 @@ class VisionTransformer(nn.Module):
         super(VisionTransformer, self).__init__()
         self.num_classes = num_classes
         self.num_features = self.embed_dim = embed_dim  # num_features for consistency with other models
+        # token参数在 Deit 模型中会用到 在vit中都是1
         self.num_tokens = 2 if distilled else 1
+
         norm_layer = norm_layer or partial(nn.LayerNorm, eps=1e-6)
         act_layer = act_layer or nn.GELU
 
+        # pacth_embed层
         self.patch_embed = embed_layer(img_size=img_size, patch_size=patch_size, in_c=in_c, embed_dim=embed_dim)
         num_patches = self.patch_embed.num_patches
 
         self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+
+        # 这个也是Deit模型里面的 在vit中不用管
         self.dist_token = nn.Parameter(torch.zeros(1, 1, embed_dim)) if distilled else None
+
+        # 位置编码
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + self.num_tokens, embed_dim))
+
+        # p是丢弃率
         self.pos_drop = nn.Dropout(p=drop_ratio)
 
+        # 这是用于blocks里面的丢弃率  按照0-drop_path_ratio 均匀分布
         dpr = [x.item() for x in torch.linspace(0, drop_path_ratio, depth)]  # stochastic depth decay rule
         self.blocks = nn.Sequential(*[
             Block(dim=embed_dim, num_heads=num_heads, mlp_ratio=mlp_ratio, qkv_bias=qkv_bias, qk_scale=qk_scale,
@@ -234,6 +246,8 @@ class VisionTransformer(nn.Module):
                   norm_layer=norm_layer, act_layer=act_layer)
             for i in range(depth)
         ])
+
+
         self.norm = norm_layer(embed_dim)
 
         # Representation layer
@@ -248,8 +262,10 @@ class VisionTransformer(nn.Module):
             self.has_logits = False
             self.pre_logits = nn.Identity()
 
-        # Classifier head(s)
+        # Classifier head(s) 分类头
         self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
+
+        # 这个不用管
         self.head_dist = None
         if distilled:
             self.head_dist = nn.Linear(self.embed_dim, self.num_classes) if num_classes > 0 else nn.Identity()
