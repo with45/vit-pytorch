@@ -7,6 +7,7 @@ from torchvision import transforms
 import matplotlib.pyplot as plt
 
 from vit_model import vit_base_patch16_224_in21k as create_model
+from vit_model import vit_base_patch16_224 as VIT
 
 
 def main():
@@ -19,7 +20,7 @@ def main():
          transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])])
 
     # load image
-    img_path = "../tulip.jpg"
+    img_path = "img/40410963_3ac280f23a_n.jpg"
     assert os.path.exists(img_path), "file: '{}' dose not exist.".format(img_path)
     img = Image.open(img_path)
     plt.imshow(img)
@@ -29,30 +30,31 @@ def main():
     img = torch.unsqueeze(img, dim=0)
 
     # read class_indict
-    json_path = './class_indices.json'
+    json_path = 'data.json'
     assert os.path.exists(json_path), "file: '{}' dose not exist.".format(json_path)
 
     with open(json_path, "r") as f:
         class_indict = json.load(f)
 
     # create model
-    model = create_model(num_classes=5, has_logits=False).to(device)
+    model = VIT(num_classes=1000,).to(device)
     # load model weights
-    model_weight_path = "./weights/model-9.pth"
+    model_weight_path = "weights/vit_base_patch16_224.pth"
     model.load_state_dict(torch.load(model_weight_path, map_location=device))
     model.eval()
     with torch.no_grad():
         # predict class
         output = torch.squeeze(model(img.to(device))).cpu()
         predict = torch.softmax(output, dim=0)
+        # 这里的predict_cla是一个张量
         predict_cla = torch.argmax(predict).numpy()
 
     print_res = "class: {}   prob: {:.3}".format(class_indict[str(predict_cla)],
                                                  predict[predict_cla].numpy())
     plt.title(print_res)
-    for i in range(len(predict)):
-        print("class: {:10}   prob: {:.3}".format(class_indict[str(i)],
-                                                  predict[i].numpy()))
+    # for i in range(len(predict)):
+    #     print("class: {:10}   prob: {:.3}".format(class_indict[str(i)],
+    #                                               predict[i].numpy()))
     plt.show()
 
 
