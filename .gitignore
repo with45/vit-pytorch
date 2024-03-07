@@ -129,3 +129,4 @@ dmypy.json
 .pyre/
 
 vision_transformer-rwightman/weights/*
+/.idea/other.xml
